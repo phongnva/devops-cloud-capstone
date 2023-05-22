@@ -1,0 +1,35 @@
+Description: >
+  UdaPeople backend stack.
+
+Parameters:
+  ID:
+    Description: Unique identifier.
+    Type: String
+
+Resources:
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub UdaPeople-${ID}
+      GroupDescription: Allow port 22 and port 8000.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      SecurityGroups:
+        - Ref: InstanceSecurityGroup
+      KeyName: phongnva
+      ImageId: ami-007855ac798b5175e
+      Tags:
+        - Key: Name
+          Value: !Sub backend-${ID}

@@ -1,0 +1,152 @@
+version: 2.1
+
+commands:
+  destroy-environment:
+    description: Destroy backend cloudformation stacks given a workflow ID.
+    steps:
+      - run:
+          name: Destroy environments
+          when: on_fail
+          command: |
+            aws cloudformation delete-stack --stack-name udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}
+
+jobs:
+  lint:
+    docker:
+      - image: python:3.7.3-stretch
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "requirements.txt" }}
+            - v1-dependencies-
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            make install
+            # Install hadolint
+            wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64 &&\
+            chmod +x /bin/hadolint
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+      - run:
+          name: run lint
+          command: |
+            . venv/bin/activate
+            make lint 
+
+  upload-docker:
+    docker:
+      - image: cimg/go:1.17
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.14
+          docker_layer_caching: true      
+      - run:
+          name: upload docker
+          command: |  
+            docker --version
+            chmod +x upload_docker.sh
+            ./upload_docker.sh            
+
+  deploy-infrastructure:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run: yum -y install tar gzip
+      - run:
+          name: Ensure backend infrastructure exists
+          command: |
+            aws cloudformation deploy \
+              --template-file .circleci/files/backend.yml \
+              --tags project=project5 \
+              --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"    
+      - run:
+          name: Add backend ip to ansible inventory
+          command: |
+            cd .circleci/ansible 
+            touch inventory.txt
+            echo [backend] > inventory.txt
+            aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --output text >> inventory.txt
+            pwd
+            ls -la
+            cat inventory.txt
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - project/.circleci/ansible/inventory.txt
+      - destroy-environment
+
+  configure-infrastructure:
+    docker:
+      - image: python:3.11-rc-alpine
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["67:5a:f5:ab:bb:ea:f6:64:8b:22:39:2f:79:95:c5:bd"]
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update ansible 
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Configure server
+          command: |
+            tar -czvf artifact.tar.gz app.py install_docker.sh install_minikube.sh install_kubectl.sh run_kubernetes.sh
+            pwd
+            ls -la         
+            cd .circleci/ansible 
+            pwd
+            ls -la
+            cat inventory.txt
+            ansible-playbook -i inventory.txt configure-server.yml
+      - destroy-environment
+
+  deploy-app:
+    docker:
+      - image: python:3.11-rc-alpine
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints: ["67:5a:f5:ab:bb:ea:f6:64:8b:22:39:2f:79:95:c5:bd"]
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --update ansible 
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Deploy app
+          command: |      
+            cd .circleci/ansible 
+            pwd
+            ls -la
+            cat inventory.txt
+            ansible-playbook -i inventory.txt deploy-backend.yml
+      - destroy-environment
+
+workflows:
+  default:
+    jobs:
+      - lint
+      - upload-docker:
+          requires: [lint]
+      - deploy-infrastructure:
+          requires: [upload-docker]
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
+      - deploy-app:
+          requires: [configure-infrastructure]
