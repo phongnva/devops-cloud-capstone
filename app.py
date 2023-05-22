@@ -2,8 +2,6 @@ from flask import Flask, jsonify
 from flask.logging import create_logger
 import logging
 
-from datetime import datetime as dt
-
 app = Flask(__name__)
 LOG = create_logger(app)
 LOG.setLevel(logging.INFO)
