@@ -100,6 +100,7 @@ jobs:
           name: Install dependencies
           command: |
             apk add --update ansible 
+            apk add --no-cache aws-cli
       - attach_workspace:
           at: ~/
       - run:
