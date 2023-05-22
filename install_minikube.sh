@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-echo "===== Install minikube on Ubuntu 22.04 LTS ====="
+echo "Install minikube on Ubuntu"
 
 apt install -y curl wget apt-transport-https
 wget https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
