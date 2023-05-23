@@ -114,7 +114,7 @@ jobs:
             ls -la
             cat inventory.txt
             ansible-playbook -i inventory.txt configure-server.yml
-      # - destroy-environment
+      - destroy-environment
 
   deploy-app:
     docker:
@@ -127,6 +127,7 @@ jobs:
           name: Install dependencies
           command: |
             apk add --update ansible 
+            apk add --no-cache aws-cli
       - attach_workspace:
           at: ~/
       - run:
